@@ -15,7 +15,7 @@ import "@test/mocks/PoolMock.sol";
 import "@test/mocks/USDC.sol";
 import {SizeFactoryMock} from "@test/mocks/SizeFactoryMock.sol";
 
-contract SizeHalmosTest is Test, HalmosHelpers {
+contract HalmosSetVaultNoOpTest is Test, HalmosHelpers {
     uint256 private constant USDC_INITIAL_BALANCE = 1_000_000e6;
 
     NonTransferrableRebasingTokenVaultPseudoCopy private token;
@@ -30,8 +30,7 @@ contract SizeHalmosTest is Test, HalmosHelpers {
     SymbolicActor[] actors;
     
     address deployer = address(0xcafe0000);
-    constructor() {
-    }
+    constructor() {}
 
     function settingUp() internal {
         // Creating actors part
@@ -39,7 +38,7 @@ contract SizeHalmosTest is Test, HalmosHelpers {
         halmosHelpersInitialize(); // Initialize HalmosHelpers stuff
         /*
         * Initialize 2 Actors
-        * actors[0] is owner for SizeFactoryMock and USDC
+        * actors[0] is a market
         * actors[1] is a regular user
         * actors[2] is a regular user
         */

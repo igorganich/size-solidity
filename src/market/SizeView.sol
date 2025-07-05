@@ -2,7 +2,7 @@
 pragma solidity 0.8.23;
 
 import {SizeStorage, State, User, UserCopyLimitOrders} from "@src/market/SizeStorage.sol";
-import {VariablePoolBorrowRateParams} from "@src/market/libraries/YieldCurveLibrary.sol";
+//import {VariablePoolBorrowRateParams} from "@src/market/libraries/YieldCurveLibrary.sol";
 
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
