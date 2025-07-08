@@ -262,7 +262,6 @@ contract NonTransferrableRebasingTokenVault is
         if (vaultToIdMap.contains(vault) && vaultOf[user] != vault) {
             // slither-disable-next-line reentrancy-no-eth
             _transferFrom(vaultOf[user], vault, user, user, balanceOf(user));
-
             emit VaultSet(user, vaultOf[user], vault);
             vaultOf[user] = vault;
         }
@@ -416,7 +415,7 @@ contract NonTransferrableRebasingTokenVault is
         }
         // slither-disable-next-line unused-return
         vaultToIdMap.set(vault, id);
-        //emit VaultAdapterSet(vault, id);
+        emit VaultAdapterSet(vault, id);
     }
 
     /// @notice Removes a vault from the whitelist

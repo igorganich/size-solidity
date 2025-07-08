@@ -81,6 +81,8 @@ import {ISizeAdmin} from "@src/market/interfaces/ISizeAdmin.sol";
 import {ISizeV1_7} from "@src/market/interfaces/v1.7/ISizeV1_7.sol";
 import {Errors} from "@src/market/libraries/Errors.sol";
 
+import "forge-std/Test.sol";
+
 import {
     BORROW_RATE_UPDATER_ROLE, ISizeFactory, KEEPER_ROLE, PAUSER_ROLE
 } from "@src/factory/interfaces/ISizeFactory.sol";
@@ -89,7 +91,7 @@ import {
 /// @custom:security-contact security@size.credit
 /// @author Size (https://size.credit/)
 /// @notice See the documentation in {ISize}.
-contract Size is ISize, SizeView, Initializable, AccessControlUpgradeable, PausableUpgradeable, UUPSUpgradeable {
+contract Size is ISize, SizeView, Initializable, AccessControlUpgradeable, PausableUpgradeable, UUPSUpgradeable, Test {
     using Initialize for State;
     using UpdateConfig for State;
     using Deposit for State;

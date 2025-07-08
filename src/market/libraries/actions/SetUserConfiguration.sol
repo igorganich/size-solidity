@@ -100,7 +100,6 @@ library SetUserConfiguration {
                 params.creditPositionIds[i], creditPosition.lender, creditPosition.credit, creditPosition.forSale
             );
         }
-
         state.data.borrowTokenVault.setVault(onBehalfOf, params.vault);
 
         emit Events.SetUserConfiguration(

@@ -20,7 +20,7 @@ contract SizeMock is Size {
     using LoanLibrary for State;
 
     // https://github.com/foundry-rs/foundry/issues/4615
-    bool public IS_TEST = true;
+    //bool public IS_TEST = true;
 
     function v() public pure returns (uint256) {
         return 2;

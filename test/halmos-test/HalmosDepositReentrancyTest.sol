@@ -4,6 +4,7 @@ pragma solidity 0.8.23;
 
 import "halmos-helpers-lib/HalmosHelpers.sol";
 
+import {Action, Authorization} from "@src/factory/libraries/Authorization.sol";
 import {SizeMock} from "@test/mocks/SizeMock.sol";
 import {Size} from "@src/market/Size.sol";
 import {ISize} from "@src/market/interfaces/ISize.sol";
@@ -36,6 +37,8 @@ import {PriceFeed, PriceFeedParams} from "@src/oracle/v1.5.1/PriceFeed.sol";
 
 import {PriceFeedMock} from "@test/mocks/PriceFeedMock.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {AaveAdapter} from "@src/market/token/adapters/AaveAdapter.sol";
+import "@src/market/token/NonTransferrableRebasingTokenVault.sol";
 
 contract HalmosDepositReentrancyTest is Test, HalmosHelpers {
 
@@ -56,6 +59,7 @@ contract HalmosDepositReentrancyTest is Test, HalmosHelpers {
     ERC4626Adapter erc4626Adapter;
     IERC4626 internal vaultSolady;
     ERC1967Proxy internal proxy;
+    AaveAdapter private aaveAdapter;
 
     SizeMock internal size;
     ISize market;
@@ -114,8 +118,6 @@ contract HalmosDepositReentrancyTest is Test, HalmosHelpers {
             string.concat("sv", usdc.symbol()),
             usdc.decimals()
         );
-        erc4626Adapter = new ERC4626Adapter(token, usdc);
-        token.setAdapter(bytes32("ERC4626Adapter"), erc4626Adapter);
 
         f = InitializeFeeConfigParams({
             swapFeeAPR: 0.005e18,
@@ -144,52 +146,72 @@ contract HalmosDepositReentrancyTest is Test, HalmosHelpers {
 
         implementation = address(new Size());
         sizeFactory.setSizeImplementation(implementation);
-        console.log("123");
         proxy = ERC1967Proxy(payable(address(sizeFactory.createMarket(f, r, o, d))));
-        console.log("321");
         size = SizeMock(payable(proxy));
         PriceFeedMock(address(priceFeed)).setPrice(1337e18);
 
-        NonTransferrableRebasingTokenVault borrowTokenVault = size.data().borrowTokenVault;
-        UUPSUpgradeable(address(borrowTokenVault)).upgradeToAndCall(address(token), "");
-
-        token.setVaultAdapter(address(symbolic_vault), bytes32("ERC4626Adapter"));
+        erc4626Adapter = new ERC4626Adapter(token, usdc);
+        token.setAdapter(bytes32("ERC4626Adapter"), erc4626Adapter);
+        aaveAdapter = new AaveAdapter(token, variablePool, usdc);
+        token.setAdapter(bytes32("AaveAdapter"), aaveAdapter);
+        token.setVaultAdapter(DEFAULT_VAULT, bytes32("AaveAdapter"));
+        token.setVaultAdapter(symbolic_vault, bytes32("ERC4626Adapter"));
         vaultSolady = IERC4626(address(new ERC4626Solady(address(usdc), "VaultSolady", "VAULTSOLADY", true, 0)));
         token.setVaultAdapter(address(vaultSolady), bytes32("ERC4626Adapter"));
 
         vm.stopPrank();
 
         vm.startPrank(address(size));
+        console.log("setting vault alice");
         token.setVault(alice, symbolic_vault);
+        console.log("setting vault bob");
         token.setVault(bob, address(vaultSolady));
         vm.stopPrank();
 
+        /* 
+        * Deposit something and leave something on actors' balances, while everything is approved
+        * to cover more scenarios 
+        */
         vm.startPrank(alice);
         usdc.approve(address(size), USDC_INITIAL_BALANCE);
-        size.deposit(DepositParams({token: address(usdc), amount: USDC_INITIAL_BALANCE, to: alice}));
+        size.deposit(DepositParams({token: address(usdc), amount: USDC_INITIAL_BALANCE / 2, to: alice}));
+        sizeFactory.setAuthorization(address(size), Authorization.getActionsBitmap(Action.SET_USER_CONFIGURATION));
+        sizeFactory.setAuthorization(symbolic_vault, Authorization.getActionsBitmap(Action.SET_USER_CONFIGURATION));
         vm.stopPrank();
         // Symbolic implementation of vault can "forget" to take approved assets
         vm.prank(address(vaults[0]));
-        usdc.transferFrom(address(erc4626Adapter), address(symbolic_vault), USDC_INITIAL_BALANCE);
+        usdc.transferFrom(address(erc4626Adapter), address(symbolic_vault), USDC_INITIAL_BALANCE / 2);
 
         vm.startPrank(bob);
         usdc.approve(address(size), USDC_INITIAL_BALANCE);
-        size.deposit(DepositParams({token: address(usdc), amount: USDC_INITIAL_BALANCE, to: bob}));
+        size.deposit(DepositParams({token: address(usdc), amount: USDC_INITIAL_BALANCE / 2, to: bob}));
+        sizeFactory.setAuthorization(address(size), Authorization.getActionsBitmap(Action.SET_USER_CONFIGURATION));
         vm.stopPrank();
 
-
         vm.startPrank(getConfigurer());
-        halmosHelpersSetOnlyAllowedSelectors(true);
         halmosHelpersRegisterTargetAddress(address(size), "Size");
-        halmosHelpersAllowFunctionSelector(size.deposit.selector);
-        halmosHelpersAllowFunctionSelector(size.setUserConfigurationOnBehalfOf.selector);
+        //halmosHelpersSetOnlyAllowedSelectors(true);
+        //halmosHelpersAllowFunctionSelector(size.deposit.selector);
+        //halmosHelpersAllowFunctionSelector(size.setUserConfigurationOnBehalfOf.selector);
         // Process callbacks of depth 1
         halmosHelpersSetSymbolicCallbacksDepth(1, 1);
+        halmosHelpersSetNoDuplicateCalls(true);
+        halmosHelpersSetDebugMode(true);
+        /* heuristics: avoiding redundant duplicate calls */
+        halmosHelpersBanFunctionSelector(size.multicall.selector);
+
+        /* heuristics: heavy functions are bottlenecks */
+        //halmosHelpersBanFunctionSelector(size.copyLimitOrdersOnBehalfOf.selector);
+        //halmosHelpersBanFunctionSelector(size.copyLimitOrders.selector);
         vm.stopPrank();
     }
 
     function check_BalanceIntegritySize() external {
         settingUp();
+
+        //vm.startPrank(alice);
+        //size.deposit(DepositParams({token: address(usdc), amount: USDC_INITIAL_BALANCE / 2, to: alice}));
+        //vm.stopPrank();
 
         halmosHelpersSymbolicBatchStartPrank(actors);
         executeSymbolicallyAllTargets("check_balanceIntegritySize");
